@@ -27,6 +27,7 @@ jspm_packages/
 .env.test.local
 .env.production.local
 *.env
+.secrets
 
 # TanStack Start / Vinxi build outputs
 .output/
@@ -51,3 +52,5 @@ Thumbs.db
 
 # TypeScript cache
 *.tsbuildinfo
+
+bin

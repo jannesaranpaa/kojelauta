@@ -1,0 +1,57 @@
+name: Deploy Dashboard to Scaleway
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: rg.fr-par.scw.cloud/kojelauta-registry
+  IMAGE_NAME: kojelauta
+  REGION: fr-par
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to Scaleway Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: rg.fr-par.scw.cloud
+          username: nologin
+          password: ${{ secrets.SCW_SECRET_KEY }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Setup Scaleway CLI
+        uses: scaleway/action-scw@v0
+        with:
+          version: latest
+          save-config: true
+          export-config: true
+          access-key: ${{ secrets.SCW_ACCESS_KEY }}
+          secret-key: ${{ secrets.SCW_SECRET_KEY }}
+          default-project-id: ${{ secrets.SCW_PROJECT_ID }}
+          default-organization-id: ${{ secrets.SCW_ORGANIZATION_ID }}
+
+      - name: Deploy to Scaleway Serverless Container
+        run: |
+          # 1. Update the container to point to the new image
+          scw container container update ${{ secrets.SCW_CONTAINER_ID }} registry-image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} region=${{ env.REGION }}
+
+          # 2. Give Scaleway 15 seconds to process the update and unlock the container
+          sleep 15
+
+          # 3. Trigger the deployment to spin up the new code
+          scw container container deploy ${{ secrets.SCW_CONTAINER_ID }} region=${{ env.REGION }}
